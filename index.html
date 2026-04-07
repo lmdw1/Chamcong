@@ -27,7 +27,7 @@
 <div class="container">
     <h2>MÁY CHẤM CÔNG</h2>
     <input type="text" id="userInput" placeholder="Nhập ID hoặc SĐT..." oninput="verifyUser()" autocomplete="off">
-    <div id="welcomeMsg" class="welcome">Vui lòng nhập mã định danh</div>
+    <div id="welcomeMsg" class="welcome">Đang tải dữ liệu...</div>
     
     <div class="btn-group">
         <button id="btnIn" class="btn-in" onclick="submitAttendance('VÀO LÀM')" disabled>VÀO LÀM</button>
@@ -38,10 +38,8 @@
 </div>
 
 <script>
-    // --- 1. CẤU HÌNH LINK CSV (DÁN LINK CỦA ÔNG VÀO ĐÂY) ---
+    // --- 1. CẤU HÌNH ---
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTUg_iywqM2LI-05k_0pBiN1031ZjfRpz_bpT9elmzsG9_bxXoYe3Lu6zE8XJ-6Q1q8VXLtXbS9Wtxq/pub?gid=1711800207&single=true&output=csv';
-    
-    // --- 2. CẤU HÌNH GOOGLE FORM (GIỮ NGUYÊN VÌ TÔI ĐÃ LẤY TỪ LINK ÔNG GỬI) ---
     const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScLa2wRfX1H-VWXbBgcV6ibK_rcTHzz7LjtYbe4e0lLlulztw/formResponse';
     const ENTRY_PHONE = 'entry.1427933739'; 
     const ENTRY_ID = 'entry.1524972538';
@@ -50,19 +48,27 @@
     let userData = [];
     let currentUser = null;
 
-    // Tải danh sách nhân viên từ Google Sheet
+    // Tải danh sách nhân viên
     function loadUserData() {
         Papa.parse(CSV_URL, {
             download: true,
             header: true,
             complete: function(results) {
                 userData = results.data;
-                console.log("Danh sách nhân viên cập nhật mới nhất");
+                console.log("Dữ liệu đã sẵn sàng");
+                
+                // --- THÊM TÍNH NĂNG NHỚ ID ---
+                const savedID = localStorage.getItem('savedID');
+                if (savedID) {
+                    document.getElementById('userInput').value = savedID;
+                    verifyUser();
+                } else {
+                    document.getElementById('welcomeMsg').innerText = "Vui lòng nhập mã định danh";
+                }
             }
         });
     }
 
-    // Chạy tải dữ liệu khi vừa mở web
     loadUserData();
 
     function verifyUser() {
@@ -71,7 +77,6 @@
         const btnIn = document.getElementById('btnIn');
         const btnOut = document.getElementById('btnOut');
 
-        // Tìm user khớp với ID hoặc SĐT (Lưu ý: Tên cột trong Sheet phải đúng là ID và SĐT)
         currentUser = userData.find(u => u.SĐT === input || u.ID === input);
 
         if (currentUser) {
@@ -89,24 +94,23 @@
 
     function submitAttendance(action) {
         if (!currentUser) return;
-
         const input = document.getElementById('userInput').value.trim();
         const status = document.getElementById('status');
         
         status.innerText = "⌛ Đang ghi nhận...";
         status.style.color = "#f4b400";
 
+        // LƯU ID VÀO TRÌNH DUYỆT TRƯỚC KHI GỬI
+        localStorage.setItem('savedID', input);
+
         const params = new URLSearchParams();
-        
-        // LOGIC THÔNG MINH: Nhập cái gì gửi cái đó, cái còn lại để TRỐNG
         if (currentUser.ID === input) {
             params.append(ENTRY_ID, input);
-            params.append(ENTRY_PHONE, ""); // Để trống cột SĐT bên Sheet
+            params.append(ENTRY_PHONE, "");
         } else if (currentUser.SĐT === input) {
             params.append(ENTRY_PHONE, input);
-            params.append(ENTRY_ID, "");    // Để trống cột ID bên Sheet
+            params.append(ENTRY_ID, "");
         }
-
         params.append(ENTRY_ACTION, action);
 
         fetch(FORM_URL, {
@@ -116,11 +120,7 @@
         }).then(() => {
             status.innerText = "✅ " + action + " THÀNH CÔNG!";
             status.style.color = "#34a853";
-            document.getElementById('userInput').value = "";
-            currentUser = null;
-            verifyUser();
-            // Tải lại danh sách nhân viên phòng trường hợp ông vừa thêm người mới
-            loadUserData();
+            // Không xóa input sau khi gửi để ID vẫn nằm đó cho lần sau
             setTimeout(() => { status.innerText = ""; }, 5000);
         }).catch(err => {
             status.innerText = "❌ LỖI KẾT NỐI!";
