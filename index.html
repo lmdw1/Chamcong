@@ -38,30 +38,32 @@
 </div>
 
 <script>
-    // --- CẤU HÌNH ---
-    // 1. Dán cái link "Xuất bản dưới dạng CSV" của tab DanhSachNV vào đây
+    // --- 1. CẤU HÌNH LINK CSV (DÁN LINK CỦA ÔNG VÀO ĐÂY) ---
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTUg_iywqM2LI-05k_0pBiN1031ZjfRpz_bpT9elmzsG9_bxXoYe3Lu6zE8XJ-6Q1q8VXLtXbS9Wtxq/pub?gid=1711800207&single=true&output=csv';
     
-    // 2. Link xử lý Form (Đã lấy từ link của ông)
+    // --- 2. CẤU HÌNH GOOGLE FORM (GIỮ NGUYÊN VÌ TÔI ĐÃ LẤY TỪ LINK ÔNG GỬI) ---
     const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScLa2wRfX1H-VWXbBgcV6ibK_rcTHzz7LjtYbe4e0lLlulztw/formResponse';
-    
-    // 3. Các ID ô nhập liệu (Đã lấy từ link của ông)
     const ENTRY_PHONE = 'entry.1427933739'; 
     const ENTRY_ID = 'entry.1524972538';
     const ENTRY_ACTION = 'entry.1196977499';
-    // ----------------
 
     let userData = [];
+    let currentUser = null;
 
-    // Tải danh sách nhân viên
-    Papa.parse(CSV_URL, {
-        download: true,
-        header: true,
-        complete: function(results) {
-            userData = results.data;
-            console.log("Danh sách nhân viên đã sẵn sàng");
-        }
-    });
+    // Tải danh sách nhân viên từ Google Sheet
+    function loadUserData() {
+        Papa.parse(CSV_URL, {
+            download: true,
+            header: true,
+            complete: function(results) {
+                userData = results.data;
+                console.log("Danh sách nhân viên cập nhật mới nhất");
+            }
+        });
+    }
+
+    // Chạy tải dữ liệu khi vừa mở web
+    loadUserData();
 
     function verifyUser() {
         const input = document.getElementById('userInput').value.trim();
@@ -69,11 +71,11 @@
         const btnIn = document.getElementById('btnIn');
         const btnOut = document.getElementById('btnOut');
 
-        // Tìm trong cột SĐT hoặc ID (khớp với tên cột trong tab DanhSachNV của ông)
-        const user = userData.find(u => u.SĐT === input || u.ID === input);
+        // Tìm user khớp với ID hoặc SĐT (Lưu ý: Tên cột trong Sheet phải đúng là ID và SĐT)
+        currentUser = userData.find(u => u.SĐT === input || u.ID === input);
 
-        if (user) {
-            welcome.innerText = "Xin chào, " + user.Tên;
+        if (currentUser) {
+            welcome.innerText = "Xin chào, " + currentUser.Tên;
             welcome.style.color = "#1a73e8";
             btnIn.disabled = false;
             btnOut.disabled = false;
@@ -86,17 +88,25 @@
     }
 
     function submitAttendance(action) {
+        if (!currentUser) return;
+
         const input = document.getElementById('userInput').value.trim();
         const status = document.getElementById('status');
         
         status.innerText = "⌛ Đang ghi nhận...";
         status.style.color = "#f4b400";
 
-        // Chuẩn bị dữ liệu gửi đi
         const params = new URLSearchParams();
-        // Gửi vào cả 2 ô, ô nào không khớp bên Form sẽ bỏ qua hoặc nhận cả 2 đều được
-        params.append(ENTRY_PHONE, input); 
-        params.append(ENTRY_ID, input);
+        
+        // LOGIC THÔNG MINH: Nhập cái gì gửi cái đó, cái còn lại để TRỐNG
+        if (currentUser.ID === input) {
+            params.append(ENTRY_ID, input);
+            params.append(ENTRY_PHONE, ""); // Để trống cột SĐT bên Sheet
+        } else if (currentUser.SĐT === input) {
+            params.append(ENTRY_PHONE, input);
+            params.append(ENTRY_ID, "");    // Để trống cột ID bên Sheet
+        }
+
         params.append(ENTRY_ACTION, action);
 
         fetch(FORM_URL, {
@@ -107,10 +117,13 @@
             status.innerText = "✅ " + action + " THÀNH CÔNG!";
             status.style.color = "#34a853";
             document.getElementById('userInput').value = "";
+            currentUser = null;
             verifyUser();
+            // Tải lại danh sách nhân viên phòng trường hợp ông vừa thêm người mới
+            loadUserData();
             setTimeout(() => { status.innerText = ""; }, 5000);
         }).catch(err => {
-            status.innerText = "❌ LỖI! Vui lòng thử lại.";
+            status.innerText = "❌ LỖI KẾT NỐI!";
             status.style.color = "#ea4335";
         });
     }
