@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chấm Công 2026</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f2f5; }
+        .container { background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; }
+        h2 { color: #1a73e8; margin-bottom: 1.5rem; }
+        input { width: 100%; padding: 12px; margin-bottom: 1rem; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; outline: none; }
+        input:focus { border-color: #1a73e8; box-shadow: 0 0 5px rgba(26,115,232,0.3); }
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
+        button { flex: 1; padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 16px; }
+        .btn-in { background-color: #34a853; }
+        .btn-in:active { background-color: #2d8e47; }
+        .btn-out { background-color: #ea4335; }
+        .btn-out:active { background-color: #d33828; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #status { margin-top: 1.5rem; font-weight: bold; min-height: 24px; }
+        .welcome { color: #5f6368; margin-bottom: 1rem; font-weight: bold; font-size: 1.2rem; min-height: 1.5rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>MÁY CHẤM CÔNG</h2>
+    <input type="text" id="userInput" placeholder="Nhập ID hoặc SĐT..." oninput="verifyUser()" autocomplete="off">
+    <div id="welcomeMsg" class="welcome">Vui lòng nhập mã định danh</div>
+    
+    <div class="btn-group">
+        <button id="btnIn" class="btn-in" onclick="submitAttendance('VÀO LÀM')" disabled>VÀO LÀM</button>
+        <button id="btnOut" class="btn-out" onclick="submitAttendance('RA VỀ')" disabled>RA VỀ</button>
+    </div>
+    
+    <div id="status"></div>
+</div>
+
+<script>
+    // --- CẤU HÌNH ---
+    // 1. Dán cái link "Xuất bản dưới dạng CSV" của tab DanhSachNV vào đây
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTUg_iywqM2LI-05k_0pBiN1031ZjfRpz_bpT9elmzsG9_bxXoYe3Lu6zE8XJ-6Q1q8VXLtXbS9Wtxq/pub?gid=1711800207&single=true&output=csv';
+    
+    // 2. Link xử lý Form (Đã lấy từ link của ông)
+    const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScLa2wRfX1H-VWXbBgcV6ibK_rcTHzz7LjtYbe4e0lLlulztw/formResponse';
+    
+    // 3. Các ID ô nhập liệu (Đã lấy từ link của ông)
+    const ENTRY_PHONE = 'entry.1427933739'; 
+    const ENTRY_ID = 'entry.1524972538';
+    const ENTRY_ACTION = 'entry.1196977499';
+    // ----------------
+
+    let userData = [];
+
+    // Tải danh sách nhân viên
+    Papa.parse(CSV_URL, {
+        download: true,
+        header: true,
+        complete: function(results) {
+            userData = results.data;
+            console.log("Danh sách nhân viên đã sẵn sàng");
+        }
+    });
+
+    function verifyUser() {
+        const input = document.getElementById('userInput').value.trim();
+        const welcome = document.getElementById('welcomeMsg');
+        const btnIn = document.getElementById('btnIn');
+        const btnOut = document.getElementById('btnOut');
+
+        // Tìm trong cột SĐT hoặc ID (khớp với tên cột trong tab DanhSachNV của ông)
+        const user = userData.find(u => u.SĐT === input || u.ID === input);
+
+        if (user) {
+            welcome.innerText = "Xin chào, " + user.Tên;
+            welcome.style.color = "#1a73e8";
+            btnIn.disabled = false;
+            btnOut.disabled = false;
+        } else {
+            welcome.innerText = "Chưa nhận diện được...";
+            welcome.style.color = "#5f6368";
+            btnIn.disabled = true;
+            btnOut.disabled = true;
+        }
+    }
+
+    function submitAttendance(action) {
+        const input = document.getElementById('userInput').value.trim();
+        const status = document.getElementById('status');
+        
+        status.innerText = "⌛ Đang ghi nhận...";
+        status.style.color = "#f4b400";
+
+        // Chuẩn bị dữ liệu gửi đi
+        const params = new URLSearchParams();
+        // Gửi vào cả 2 ô, ô nào không khớp bên Form sẽ bỏ qua hoặc nhận cả 2 đều được
+        params.append(ENTRY_PHONE, input); 
+        params.append(ENTRY_ID, input);
+        params.append(ENTRY_ACTION, action);
+
+        fetch(FORM_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: params
+        }).then(() => {
+            status.innerText = "✅ " + action + " THÀNH CÔNG!";
+            status.style.color = "#34a853";
+            document.getElementById('userInput').value = "";
+            verifyUser();
+            setTimeout(() => { status.innerText = ""; }, 5000);
+        }).catch(err => {
+            status.innerText = "❌ LỖI! Vui lòng thử lại.";
+            status.style.color = "#ea4335";
+        });
+    }
+</script>
+
+</body>
+</html>
